@@ -18,6 +18,13 @@ https://nodejs.org/docs/latest-v14.x/api/stream.html
 
 ## playground
 
+Ubuntuの仮想環境にて。
+
+```bash
+~$ nodenv global 16.16.0
+~$ cd nodejs/stream/
+```
+
 #### 寄り道：wslコマンド
 
 まぁここを見ろという話ですが。
@@ -142,7 +149,7 @@ https://docs.brew.sh/Homebrew-on-Linux#requirements
 sudo apt-get install build-essential procps curl file git
 
 # とにかくいろいろする前はアップデートです
-sudo apt get && sudo apt upgrade -y
+$ sudo apt update && sudo apt upgrade -y
 
 # 公式のコマンドをそのまま実行すればいいみたい
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -301,6 +308,14 @@ $ nodenv install 0.10.26
 公式で16.16.0が推奨版らしい
 
 完了
+
+#### 寄り道；WSL2でVSCodeを使えるようにする
+
+https://docs.microsoft.com/ja-jp/windows/wsl/tutorials/wsl-vscode
+
+Linuxディストリビューションから`code .`と入力するだけ
+
+
 ## 重要な概念、ポイント
 
 - highWaterMark

@@ -328,4 +328,18 @@ class Button {
 }
 ```
 
+#### 静的メソッドのthisはコンストラクタ関数である
+
+https://ja.javascript.info/static-properties-methods
+
+```JavaScript
+class User {}
+
+User.staticMethod = function () {
+  alert(this === User);
+};
+
+User.staticMethod(); // true
+```
+
 ## Object コンテキスト

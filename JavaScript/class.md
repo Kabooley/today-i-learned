@@ -14,8 +14,9 @@ https://ja.javascript.info/class-inheritance
 [クラスフィールドでバインドされたメソッドを作成する](#クラスフィールドでバインドされたメソッドを作成する)
 [super](#super)
 [extends](#extends)
-[](#)
-[](#)
+[オーバーライド](#オーバーライド)
+[静的プロパティとメソッド](#静的プロパティとメソッド)
+[高度なトピック](#高度なトピック)
 
 ## class サマリ
 
@@ -276,11 +277,14 @@ extends を ES5 以前までの文法で書くにはどうしたらいいか？
 
 #### コンストラクタ・オーバーライド
 
+暗黙的なコンストラクタ:
+
 明示的な継承 class 定義で constructor が記述されていなかった場合、
 
 constructor は暗黙的にそのクラスに対して次のコンストラクタを定義する
 
 ```JavaScript
+// 暗黙体なコンストラクタ
 class Rabbit extends Animal {
   // 独自のコンストラクタを持たないクラスを拡張するために生成されます
   constructor(...args) {
@@ -288,6 +292,60 @@ class Rabbit extends Animal {
   }
 }
 ```
+
+明示的なコンストラクタ：
+
+**明示的にコンストラクタを定義するときは、継承クラスは必ず`super()`を呼び出し、`this`を使う前にそれを行わなくてはならない。**
+
+```JavaScript
+class Animal {
+  constructor(name) {
+    this.speed = 0;
+    this.name = name;
+  }
+  // ...
+}
+
+class Rabbit extends Animal {
+
+  constructor(name, earLength) {
+    // super()が呼び出されていないと...
+    this.speed = 0;
+    this.name = name;
+    this.earLength = earLength;
+  }
+
+  // ...
+}
+
+// 動作しません!
+let rabbit = new Rabbit("White Rabbit", 10); // Error: this は定義されていません
+
+// なのでsuper()を、thisを使う前に呼び出そう
+class Rabbit extends Animal {
+
+  constructor(name, earLength) {
+    // NOTE: 必ず呼び出そう
+    super(name);
+    this.speed = 0;
+    this.name = name;
+    this.earLength = earLength;
+  }
+  // ...
+}
+```
+
+なぜ`super()`を呼ばないといけないのか？
+
+派生コンストラクタ関数は特別な内部プロパティ`[[ConstructorKind]]: derived`が疲れられる。
+
+このラベルは特別なもので、`new`の振る舞いに影響を与える。
+
+-   派生コンストラクタが`new`で呼び出されるとき、親コンストラクタが空のオブジェクトを生成してそこに this を割り当てることを期待する。
+
+だから親コンストラクタが、派生コンストラクタを new するときに必要になるので、super()で呼び出すのである。
+
+そうしないと、this が生成できないからである。
 
 #### メソッド・オーバーライド
 
@@ -331,3 +389,114 @@ https://ja.javascript.info/class-inheritance#ref-453
     rabbit.run(5); // White Rabbit runs with speed 5.
     rabbit.hide(); // White Rabbit hides!
 ```
+
+## 静的プロパティとメソッド
+
+使い方：
+
+```JavaScript
+
+    class User {
+        static staticMethod() {
+            alert(this === User);
+        }
+    }
+
+    User.staticMethod(); // true
+
+    // 以下は上記と同じこと
+
+    class User {}
+
+    User.staticMethod = function () {
+        alert(this === User);
+    };
+
+    User.staticMethod(); // true
+```
+
+-   静的メソッドの`this`はそのメソッドが所属するコンストラクタを指す。
+
+-   静的メソッドは、クラスには属するけれど、特定のオブジェクトには属さない関数を実装するのに使用される。
+
+つまりインスタンスからはアクセスできないメソッドである。
+
+使いどころ：
+
+1. インスタンスの比較
+2. ファクトリ・メソッド
+
+```JavaScript
+class Article {
+  constructor(title, date) {
+    this.title = title;
+    this.date = date;
+  }
+
+  // Instanceの比較
+  static compare(articleA, articleB) {
+    return articleA.date - articleB.date;
+  }
+  // Factory Method
+  static createTodays() {
+    // this equals Article
+    return new this("Today's digest", new Date());
+  }
+}
+
+let article = Article.createTodays();
+
+alert( article.title ); // Todays digest
+
+// usage
+let articles = [
+  new Article("Mind", new Date(2019, 1, 1)),
+  new Article("Body", new Date(2019, 0, 1)),
+  new Article("JavaScript", new Date(2019, 11, 1))
+];
+
+articles.sort(Article.compare);
+
+alert( articles[0].title ); // Body
+```
+
+createTodays()も compare()も Article インスタンスのメソッドではなくてクラスにのみ属する関数である。
+
+#### 静的プロパティ
+
+```JavaScript
+
+    class Article {
+        static publisher = 'Ilya Kantor';
+    }
+
+    console.log(Article.publisher); // Ilya Kantor
+
+    // 直接コンストラクタへ代入するのと同じこと
+    Article.publisher = "Ilya Kantor";
+
+    const article = new Article();
+    // インスタンスを作って中身を確認しても
+    // 静的プロパティなのでpublisherは存在していない
+    console.log(article);   // Article{}
+
+
+    // 当然全く同じ名前のプロパティを追加できる
+    article.publisher = "Mr. Donovan";
+    console.log(article);   // Aritcle{ publisher: "Mr. Donovan"}
+
+    // 静的メソッドと上記の通り追加したメソッドは別物なので
+    console.log(Article.publisher);  // Ilya Kantor のままである
+```
+
+#### 静的メソッドとプロパティの継承
+
+https://ja.javascript.info/static-properties-methods#statics-and-inheritance
+
+## 高度なトピック
+
+各割愛。忘れるから。
+
+#### クラス・フィールドのオーバーライド
+
+#### Super: Internals, [[HomeObject]]

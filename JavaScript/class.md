@@ -8,6 +8,10 @@ https://ja.javascript.info/class-inheritance
 
 ワークスペース： `~/workspaces/JavaScript/`
 
+## 目的
+
+class について理解して正しい使い方を身に着ける
+
 ## 目次
 
 [class サマリ](#classサマリ)
@@ -16,6 +20,8 @@ https://ja.javascript.info/class-inheritance
 [extends](#extends)
 [オーバーライド](#オーバーライド)
 [静的プロパティとメソッド](#静的プロパティとメソッド)
+[継承とプロパティ](#継承とプロパティ)
+[正しい使い方の模索](#正しい使い方の模索)
 [高度なトピック](#高度なトピック)
 
 ## class サマリ
@@ -351,7 +357,7 @@ class Rabbit extends Animal {
 
 https://ja.javascript.info/class-inheritance#ref-453
 
-`extends`したクラスは基底クラスのメソッドをオーバーライドできる
+**`extends`したクラスは基底クラスのメソッドをオーバーライドできる**
 
 ```JavaScript
 
@@ -391,6 +397,12 @@ https://ja.javascript.info/class-inheritance#ref-453
 ```
 
 ## 静的プロパティとメソッド
+
+結論：
+
+-   静的メソッド、静的プロパティはそれが属するクラス（コンストラクタ）でのみアクセス可能で、そのインスタンスからはアクセスできない
+-   静的メソッドの this はそのメソッドが属するクラス（コンストラクタ）である
+-   静的プロパティ、静的メソッドは継承できる
 
 使い方：
 
@@ -492,6 +504,218 @@ createTodays()も compare()も Article インスタンスのメソッドでは�
 #### 静的メソッドとプロパティの継承
 
 https://ja.javascript.info/static-properties-methods#statics-and-inheritance
+
+**静的メソッドとプロパティは、派生クラスに継承される**
+
+確認：
+
+````JavaScript
+class Animal {
+  static planet = "Earth";
+
+  constructor(name, speed) {
+    this.speed = speed;
+    this.name = name;
+  }
+
+  run(speed = 0) {
+    this.speed += speed;
+    alert(`${this.name} runs with speed ${this.speed}.`);
+  }
+
+  static compare(animalA, animalB) {
+    return animalA.speed - animalB.speed;
+  }
+
+}
+
+// Inherit from Animal
+class Rabbit extends Animal {
+  hide() {
+    alert(`${this.name} hides!`);
+  }
+}
+
+let rabbits = [
+  new Rabbit("White Rabbit", 10),
+  new Rabbit("Black Rabbit", 5)
+];
+
+rabbits.sort(Rabbit.compare);
+
+rabbits[0].run(); // Black Rabbit runs with speed 5.
+
+alert(Rabbit.planet); // Earth```JavaScript
+````
+
+派生クラス Rabbit は、親クラス Animal の静的メソッド`compare()`とプロパティ`planet`を継承しているのが確認できる。
+
+これの仕組みを考える。
+
+## 継承とプロトタイプ
+
+https://ja.javascript.info/prototypes
+
+基本：
+
+JavaScript においてプロトタイプチェーンを実現できるのはすべてのオブジェクトがプロトタイプという特別なプロパティを持つ。
+
+ここでいうプロトタイプとは`[[Prototype]]`を指す。
+
+`[[Prototype]]`とは、JavaScript オブジェクトが必ずもつ特別なプロパティである。
+
+`[[Prototype]]`はプロトタイプチェーンを実現しているプロパティで、自身のプロトタイプとなるオブジェクトを指している。
+
+`[[Prototype]]`は JavaScript がちょせくアクセスできるプロパティではなく、「隠されている」。
+
+しかし、実は`[[Prototype]]`は`__proto__`プロパティでアクセスできる。
+
+さらに言えば`__proto__`は`[[Prototype]]`という隠されたプロパティを「暴露」するアクセサ（getter/setter）なので非推奨（MDN 曰く）である。
+
+ということで、
+
+-   `[[Prototype]]`プロパティはすべての JavaScript オブジェクトが持つ特別なプロパティでこれのおかげでプロトタイプチェーンが成立する。
+
+-   `__proto__`は`[[Prototype]]`へアクセスする手段で本来使用すべきでない。
+
+確認：
+
+```JavaScript
+{
+    let animal = {
+        eats: true,
+    };
+    let rabbit = {
+        jumps: true,
+    };
+
+    //通常のオブジェクトは初期生成時にObject.prototypeが自身のプロトタイプになる
+    console.log(animal.__proto__ === Object.prototype); // true
+    console.log(rabbit.__proto__ === Object.prototype); // true
+
+    // __proto__はプロトタイプを変更させることができてしまう
+    rabbit.__proto__ = animal; // (*)
+
+    // 変更されたのがわかる
+    console.log(rabbit.__proto__ === Object.prototype); // false
+    console.log(rabbit.__proto__); // animal{}
+
+    // rabbitのプロトタイプにanimalが割り当てられたので
+    // ﾌﾟﾛﾄﾀｲﾌﾟﾁｪｰﾝでanimalのプロパティにアクセスできるようになった
+    console.log(rabbit.eats); // true (**)
+    console.log(rabbit.jumps); // true
+
+    // `prototype`というプロパティは通常のオブジェクトはアクセスできない
+    console.log(animal.prototype);  // undefined
+    console.log(rabbit.prototype);  // undefined
+}
+
+```
+
+コンストラクタと`F.prototype`：
+
+-   `F.prototype`というプロパティは、コンストラクタ関数のみがアクセスできるプロパティである
+
+-   通常のオブジェクト、インスタンスオブジェクトも`prototype`というプロパティはアクセスできない
+
+-   `F.prototype`は`new F()`するときしか使われない
+
+`f.__proto__`は`new F()`するときに固定されて後から`F.prototype`を変更しても既存のインスタンス`f.__proto__`は変更されないという意味
+
+-   `F.prototype`は`[[Prototype]]`と同じではない。`new F()`されたときのみ`[[Prototype]]`へ新しいオブジェクトを割り当てる
+
+とにかく`new F()`するときだけしか出番がないのである
+
+-   `F.prototype`の値は null かオブジェクトでなくてはならない
+
+```JavaScript
+
+{
+    // F.prototype
+    //
+    // F.prototypeというプロパティはコンストラクタ関数だけがアクセスできるプロパティ
+    //
+    // Rabbit.prototype --> animal
+    // rabbit.__proto__ --> animal
+
+    let animal = {
+        eats: true
+    };
+
+    const Rabbit = function(name) {
+        this.name = name;
+    };
+
+    // 通常のオブジェクトだとprototypeというプロパティへアクセスできないが
+    // コンストラクタ関数だとprototypeへアクセスできる
+    console.log(animal.prototype);  // undefined
+    console.log(Rabbit.prototype);  // {constructor: f()}
+    console.log(Rabbit.prototype.constructor === Rabbit);   // true
+
+    Rabbit.prototype = animal;
+
+    // prototypeへ直接オブジェクトを割り当てると
+    // prototype経由で割り当てたオブジェクトのプロパティへアクセスできる
+    console.log(Rabbit.prototype);  // {eats: true}
+    console.log(Rabbit.prototype.eats); // true
+
+
+    const rabbit = new Rabbit("inaba");
+
+    // インスタンスからもF.prototypeにはアクセスできないことの確認
+    console.log(rabbit.prototype);  // undefined
+    console.log(rabbit.__proto__);  // Object: { eats: true }
+
+    // F.prototypeから割り当てられたオブジェクトを参照できていることの確認
+    console.log(rabbit.eats);   // true
+    Rabbit.prototype.eats = "carrot";
+    console.log(animal.eats);   // carrot
+
+}
+
+
+{
+    // F.prototypeはnew F()するときしか使われないことの確認
+    //
+    // つまり、インスタンス.__proto__はnewするときに固定されて
+    // 後から変更はされないということ
+
+    let animal = {
+        eats: true
+    };
+
+    let robot = {
+        eats: false
+    };
+
+    const Rabbit = function(name) {
+        this.name = name;
+    };
+
+    Rabbit.prototype = animal;
+
+    const rabbit = new Rabbit("inaba");
+
+    // 後出しでRabbitのprototypeを変更しても
+    // rabbitのprototypeはanimalを指す
+    //
+    // つまり、インスタンスにとっては
+    // F.prototypeはnew F()するときしか使われないことがわかる
+    Rabbit.prototype = robot;
+    console.log(rabbit.__proto__ === animal);   // true
+
+    // Rabbit.prototypeにrobotoを割り当てた後にnewしたインスタンスでは
+    // robotを指しているので
+    // まちがいなく
+    // F.prototypeはnew F()するときしか使われないということがわかる
+    const blackRabbit = new Rabbit("black rabbit");
+    console.log(blackRabbit.__proto__ === robot);   // true
+}
+```
+
+インスタンス自体はただのオブジェクトなので、当然 f.**proto**で直接変更できるけど、
+
+その影響はそのオブジェクトだけであり、すべての同一コンストラクタからなる既存インスタンスは影響を受けない。
 
 ## 高度なトピック
 

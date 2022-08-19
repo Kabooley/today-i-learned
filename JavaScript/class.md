@@ -21,6 +21,9 @@ class について理解して正しい使い方を身に着ける
 [オーバーライド](#オーバーライド)
 [静的プロパティとメソッド](#静的プロパティとメソッド)
 [継承とプロパティ](#継承とプロパティ)
+[new](#new)
+[](#)
+[](#)
 [正しい使い方の模索](#正しい使い方の模索)
 [高度なトピック](#高度なトピック)
 
@@ -562,11 +565,71 @@ RabbitはAnimalから継承しているからである。
 
 だから両方の静的メソッドを参照できる。
 
+## new
+
+https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/new
+
+https://ja.javascript.info/constructor-new
+
+`new`演算子は次のことを行います
+
+1. 空のプレーンなJavaScriptオブジェクトを生成します
+2. このオブジェクトに`__proto__`を追加し、コンストラクタ関数の`prototype`オブジェクトを結びつける
+3. 新しく生成されたオブジェクトインスタンスを`this`コンテキストとして結びつける
+4. 関数がオブジェクトを返さない場合は`this`を返す
+
+つまり、
+
+```JavaScript
+const Animal = function() {};
+
+const animal = new Animal();
+
+// --- this `new` process is doing like this  ---
+
+function _new(_prototype) {
+  let _animal = {};
+  _animal.__proto__ = _prototype.prototype;
+  _animal.bind(_prototype);  // これ正しいのかはさておき
+  return animal;
+}
+```
+
+コンストラクタ関数でないといけないというわけではない。
+
+コンストラクタ関数のイニシャルが大文字なのは慣習である。
+
+```JavaScript
+
+    const asshole = function() {
+        let color = "red";
+        this.sensitive = true;
+    }
+
+    const ass = new asshole();
+
+    console.log(ass); // {sensitive: true}
+    console.log(ass.color); // undefined
+```
+
+ただし`this`で指定していない変数はnewされても無視される。
+
+理由は、newは__proto__にprototypeを割り当てるだけでコピーを作るわけでないから。
+
+thisに登録されていないのならば無視されるのである。
+
+つまり単純にスコープの問題になるのでcolorなんて存在しないのである。
+
+
+
+## 正しい使い方の模索
+
+
+
 
 ## 高度なトピック
 
 各割愛。忘れるから。
 
 #### クラス・フィールドのオーバーライド
-
 #### Super: Internals, [[HomeObject]]

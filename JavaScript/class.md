@@ -22,7 +22,7 @@ class について理解して正しい使い方を身に着ける
 [静的プロパティとメソッド](#静的プロパティとメソッド)
 [継承とプロパティ](#継承とプロパティ)
 [new](#new)
-[](#)
+[delete](#delete)
 [](#)
 [正しい使い方の模索](#正しい使い方の模索)
 [高度なトピック](#高度なトピック)
@@ -556,12 +556,12 @@ alert(Rabbit.planet); // Earth```JavaScript
 これの仕組みを考える。
 
 `rabbits[0]`の`[[Prototype]]`は`Rabbit`である。
-new Rabbit()で生成されたから、Rabbbit.prototypeの値が割り当てられるから。
+new Rabbit()で生成されたから、Rabbbit.prototype の値が割り当てられるから。
 
 `Rabbit`の`[[Prototype]]`は`Animal`である。
-RabbitはAnimalから継承しているからである。
+Rabbit は Animal から継承しているからである。
 
-だからAnimalとRabbitの両方の参照を持つ。
+だから Animal と Rabbit の両方の参照を持つ。
 
 だから両方の静的メソッドを参照できる。
 
@@ -573,7 +573,7 @@ https://ja.javascript.info/constructor-new
 
 `new`演算子は次のことを行います
 
-1. 空のプレーンなJavaScriptオブジェクトを生成します
+1. 空のプレーンな JavaScript オブジェクトを生成します
 2. このオブジェクトに`__proto__`を追加し、コンストラクタ関数の`prototype`オブジェクトを結びつける
 3. 新しく生成されたオブジェクトインスタンスを`this`コンテキストとして結びつける
 4. 関数がオブジェクトを返さない場合は`this`を返す
@@ -612,24 +612,118 @@ function _new(_prototype) {
     console.log(ass.color); // undefined
 ```
 
-ただし`this`で指定していない変数はnewされても無視される。
+ただし`this`で指定していない変数は new されても無視される。
 
-理由は、newは__proto__にprototypeを割り当てるだけでコピーを作るわけでないから。
+理由は、new は**proto**に prototype を割り当てるだけでコピーを作るわけでないから。
 
-thisに登録されていないのならば無視されるのである。
+this に登録されていないのならば無視されるのである。
 
-つまり単純にスコープの問題になるのでcolorなんて存在しないのである。
+つまり単純にスコープの問題になるので color なんて存在しないのである。
+
+## delete
+
+インスタンスのプロパティを削除する。
+
+**インスタンス側のメンバーの追加や削除はプロトタイプのオブジェクトに影響を与えない**
+
+```JavaScript
+const Member = function(){};
+
+Member.prototype.sex = "Male";
+
+const M1 = new Member();
+const M2 = new Member();
+
+console.log(M1.sex + ',' + M2.sex); // Male,Male ..1
+
+M2.sex = "Female";
+
+console.log(M1.sex + ',' + M2.sex); // Male,Female ..2
+
+delete M1.sex;
+delete M2.sex;
+
+console.log(M1.sex + ',' + M2.sex); // Male,Male ..3
 
 
+```
+
+これの説明は簡単である。
+
+1. プロトタイプチェーンで Member のフィールドを参照しているだけ
+
+2. M2.sex は M2 インスタンスだけのフィールドでそれを参照しているだけ
+
+3. delete はプロトタイプに割り当てられているフィールドを削除できないだけ
+
+つまり 3 の時は 1 の時同様ﾌﾟﾛﾄﾀｲﾌﾟﾁｪｰﾝで参照しているだけ
+
+また、
+
+`M2.sex = "Female`としてもプロトタイプのフィールドが変化するわけではないこともわかる。
+
+## お作法
+
+#### オブジェクトリテラルを使って prototype 追加分を節約
+
+以下のような一つずつ prototype を追加していくやり方はデメリットが多い。
+
+-   prototype 定義がたくさんできて可読性下がる
+
+-   コンストラクタ関数名が変更になったら変更箇所多い
+
+とか
+
+```JavaScript
+const Member = function(name, age) {
+  this.name = name;
+  this.age = age;
+}
+
+Member.prototype.sayName = function() {
+    return this.name;
+}
+
+Member.prototype.sayAge = function() {
+  return this.age;
+}
+```
+
+上記は`prototype.`が増えて可読性下がるとのことなので、オブジェクトリテラルを使う
+
+```JavaScript
+const Member = function(name, age) {
+  this.name = name;
+  this.age = age;
+}
+
+Member.prototype = {
+  sayName: function() {
+    return this.name;
+  };
+
+  sayAge: function() {
+    return this.age;
+  }
+}
+```
+
+これなら一つのブロックに prototype 追加されたのが集約されているのでわかりやすい。
+
+#### 静的プロパティは読み取り専用の値にすること
+
+静的プロパティのコンテキストはその定義されているコンストラクタ関数である。
+
+インスタンスではないので、
+
+静的プロパティが後から変更されるとすべてのコンストラクタ関数の継承クラスが影響を受ける。
 
 ## 正しい使い方の模索
-
-
-
 
 ## 高度なトピック
 
 各割愛。忘れるから。
 
 #### クラス・フィールドのオーバーライド
+
 #### Super: Internals, [[HomeObject]]

@@ -13,6 +13,7 @@ React + WebWorker を実現するために試行錯誤した記録とたどり�
 -   [解決策: `useRef`を使う](#解決策-userefを使う)
 -   [class コンポーネントはまだ現役](#classコンポーネントはまだ現役)
 -   [React+Webpack での worker の扱い方](#react+webpack-での-worker-の扱い方)
+-   [webpack で webworker を扱ううえでの注意](#webpackでwebworkerを扱ううえでの注意)
 
 ## 環境
 
@@ -249,7 +250,7 @@ origin は同じでした。
 https://react.dev/reference/react/useMemo#caveats
 
 `useMemo`が`StrictMode`により 2 度実行され、その`useMemo`呼出のうちのいずれかは破棄されます。
-`useMemo`の使い方としては、計算関数は純粋関数を使っているはずだから、何度実行しても同じ値が返されるはずだからどちらを破棄しても問題ないよねというスタンスです。
+公式は、`useMemo`の使い方としては、計算関数は純粋関数を使っているはずだから、何度実行しても同じ値が返されるはずだからどちらを破棄しても問題ないよねというスタンスです。
 
 なので、可能性としては
 
@@ -518,6 +519,116 @@ Counter.worker.ts:18 [Counter.worker] running...
 https://webpack.js.org/guides/web-workers/#root
 
 プラグインが不要になった。
+
+## webpack で webworker を扱ううえでの注意
+
+webpack は worker ファイルのの依存関係をすべてひとつにバンドルします。
+
+すると以下のようなエラーに遭遇することがあります。
+
+```bash
+browser.js:131 Uncaught (in promise) ReferenceError: window is not defined
+    at eval (browser.js:131:1)
+    at ./node_modules/monaco-editor/esm/vs/base/browser/browser.js (vendors-node_modules_monaco-editor_esm_vs_editor_editor_main_js-node_modules_idb-keyval_dist_-7d7b36.bundle.js:928:1)
+    at options.factory (src_worker_fetchLibs_worker_ts.bundle.js:790:31)
+    at __webpack_require__ (src_worker_fetchLibs_worker_ts.bundle.js:208:33)
+    at fn (src_worker_fetchLibs_worker_ts.bundle.js:429:21)
+    at eval (fontMeasurements.js:6:82)
+    at ./node_modules/monaco-editor/esm/vs/editor/browser/config/fontMeasurements.js (vendors-node_modules_monaco-editor_esm_vs_editor_editor_main_js-node_modules_idb-keyval_dist_-7d7b36.bundle.js:3238:1)
+    at options.factory (src_worker_fetchLibs_worker_ts.bundle.js:790:31)
+    at __webpack_require__ (src_worker_fetchLibs_worker_ts.bundle.js:208:33)
+    at fn (src_worker_fetchLibs_worker_ts.bundle.js:429:21)
+```
+
+`ReferenceError: window is not defined`というエラー。
+
+本来、webworker のグローバル変数は`DedicatedWorlerGlobalScope`というものになるはずで、
+
+`./node_modules/monaco-editor/esm/vs/base/browser/browser.js`という知らん奴がどういうわけかワーカー環境の中で`window`オブジェクトを参照しようとしているというエラーです。
+
+しかしワーカーは`./node_modules/monaco-editor/esm/vs/base/browser/browser.js`を一切 import していない。
+
+そんなとき。
+
+#### 原因
+
+こうなる原因は webpack が全ての依存関係をワーカーのために一つにバンドルするためである。
+
+つまり、バンドルした依存関係の中に`window`を必要とする依存関係が存在したのである。
+
+ワーカーのコード：
+
+```TypeScript
+// awesome.worker.ts
+
+import { logger } from '../utils';
+
+// ...以下略
+```
+
+一見一切`monaco-editor`のモジュールは import していない。
+
+しかし実は`utils/index.ts`は`monaco-editor`を import しているモジュールを import していた。
+
+それは`src/utils/index.tsx`である。
+
+```TypeScript
+// utils/index.ts
+
+// こいつ。
+// `getModelByPath`はmonacoをインポートしている。
+export { getModelByPath } from './getModelByPath';
+
+// ...
+
+// `awesome.worker`が取り込もうとしていた対象
+export { logger } from "./logger";
+```
+
+`src/utils/index.tsx`はその内に`./getModelByPath`というmonaco-editorを内にimportしているモジュールを取りこんでいた。
+
+webpackは、ワーカーがこの`src/utils/index.tsx`をimportすると、ワーカーファイルが必要とする依存関係をすべてワーカーのためにひとつにバンドルする。
+
+そのためにワーカー単体では全く関係ない`monaco-editor`モジュールを取り込むことになり、結果`window`前提のワーカーとなってしまった。
+
+worker を webpack で扱う際には依存関係に気をつけなくてはならない。
+
+webpack 詳しい人ならば簡単に避けられる話かもしれない。
+
+#### ワーカーが変な依存関係をしていたら調べるといい場所
+
+Chromeのデベロッパーツールの`source`より。
+
+左側のペインの`page`内容が...
+
+```explorer
+top
+    localhost:8080
+    React DevelopperTool
+    ....
+your-worker-awesome-name....ts
+fetchLibs_worker_ts_....ts
+```
+
+みたいに並んでいる。
+
+調べたいworkerが`fetchLibs_worker_ts...`だとしたらそいつをクリックして
+
+```explorer
+
+fetchLibs_worker_ts_....ts
+    localhost:8080
+    your-app-project-name
+        node_modules
+        src/worker
+```
+
+みたいにひらく。
+
+ここの内容が`fetchLIbs_worker_ts..`の依存関係である。
+
+依存関係がおかしいと思ったらここの内容を調べてみよう。
+
 
 ## まとめ
 

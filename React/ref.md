@@ -640,6 +640,8 @@ https://stackoverflow.com/a/53818443
 
 ## 動的配列で生成される各コンポーネント全てに ref を渡したいとき
 
+https://stackoverflow.com/a/56063129
+
 -   `ref`配列の長さは`useEffect`で更新する
 -   動的配列から生成される各要素には`ref={_refTabs.current[index]}`という方法で ref を渡す
 

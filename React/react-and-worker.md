@@ -656,9 +656,9 @@ fetchLibs_worker_ts_....ts
 
 worker を使うにあたって`postMessage`でやり取りする以上`message`イベントでワーカーからのメッセージを受信することになります。
 
-例えば以下のようにコールバック関数で state の値を読み取っても最新の state の値を取得してくれません。
+例えば以下のようにコールバック関数内で state の値を読み取っても最新の state の値を取得してくれません。
 
-例：依存関係をリクエストして worker に取得してもらい、その結果を受信したら依存関係を管理する state を更新するコンポーネント。
+例：あるデータをリクエストして worker に取得してもらい、その結果を受信したら state を更新するコンポーネント。
 
 リクエスト段階ではそのリクエストしたモジュールの state プロパティを`loading`に、
 
@@ -674,26 +674,20 @@ import React, {
     useContext,
 } from 'react';
 
-interface iDependencyState {
-    moduleName: string;
-    version: string;
+interface iDataState {
+    dataId: string;
     state: 'loading' | 'loaded';
 };
 
-const TypingLibsProvider: React.FC<iProps> = ({ children }) => {
-    // dependencies will be like this...
-    // [
-    //      { moduleName: "react", version: "17.2.0", state: "loaded" },
-    //      { moduleName: "react-dom", version: "17.2.0", state: "loading" },
-    // ]
-    const [dependencies, setDependencies] = useState<iDependencyState[]>([]);
+const ManageWorkercomponent = ({ children }) => {
+    const [data, setData] = useState<iDataState[]>([]);
     const agent = useRef<Worker>();
 
     // Attach message event on mount.
     useEffect(() => {
         if (window.Worker && agent.current === undefined) {
             agent.current = new Worker(
-                new URL('/src/worker/fetchLibrary.worker.ts', import.meta.url),
+                new URL('/src/worker/your.worker.ts', import.meta.url),
                 { type: 'module' }
             );
             agent.current.addEventListener('message', handleWorkerMessage);
@@ -711,52 +705,43 @@ const TypingLibsProvider: React.FC<iProps> = ({ children }) => {
         };
     }, []);
 
-    // make sure dependencies is updated correctly.
+    // make sure data is updated correctly.
     useEffect(() => {
-        console.log('[TypingLibsContext] did update');
-        console.log(dependencies);
+        console.log('did update');
+        console.log(data);
     });
 
     // This callback function cannot access latest reactives...
-    const handleWorkerMessage = (e: MessageEvent<iResponseFetchLibs>) => {
-        const { moduleName, version, dependenciesMap } = e.data.payload;
+    const handleWorkerMessage = (e: MessageEvent<yourMessageType>) => {
+        const { dataId, dataMap } = e.data.payload;
 
-        console.log(`Got response of ${moduleName}@${version}`);
-        // THIS `dependencies` is always empty!!!!
-        console.log(dependencies);
+        console.log(`Got response of ${dataId}`);
+        // THIS `data` is always empty!!!!
+        console.log(data);
 
         // ...
     };
 
-    const requestFetchTypings = (moduleName: string, version: string) => {
+    const requestFetchData = (dataId: string) => {
 
-        const updatedDeps: iDependencyState[] = [
-            ...dependencies,
+        const updatedDeps: iDataState[] = [
+            ...data,
             {
-                moduleName: moduleName,
-                version: version,
+                dataId,
                 state: 'loading',
             },
         ];
-        setDependencies(updatedDeps);
+        setData(updatedDeps);
 
         if (agent.current !== undefined) {
             agent.current!.postMessage({
-                order: 'RESOLVE_DEPENDENCY',
-                payload: {
-                    moduleName,
-                    version,
-                },
-            } as iRequestFetchLibs);
+                dataId
+            });
         }
     };
 
     return (
-        <TypingLibsContext.Provider value={dependencies}>
-            <RequestFetchContext.Provider value={requestFetchTypings}>
-                {children}
-            </RequestFetchContext.Provider>
-        </TypingLibsContext.Provider>
+        // ...
     );
 };
 
@@ -764,31 +749,33 @@ const TypingLibsProvider: React.FC<iProps> = ({ children }) => {
 
 簡単な流れ：
 
--   `requestFetchTypings()`を呼び出して取得したいライブラリをリクエストする
--   `requestFetchTypings()`はリクエストされたライブラリをひとまず dependencies に`state: "loading"`で登録する
+-   `requestFetchData()`を呼び出して取得したいデータをリクエストする
+-   `requestFetchData()`はリクエストされたデータをひとまず data に`state: "loading"`で登録する
 -   worker にリクエストする
 -   `handleWorkerMessage`が worker からのレスポンスを受信する。
--   `dependencies`の該当ライブライのプロパティ`state:"loaded"`に更新する。
+-   `data`の該当要素のプロパティ`state:"loaded"`に更新する。
 
-このとき`handleWorkerMessage`から当然最新の`dependencies`が取得できることが期待されます。
+このとき`handleWorkerMessage`から当然最新の`data`が取得できることが期待されます。
 
-しかし`dependencies`は空の配列を取得します。
+しかし`data`は空の配列を取得します。
 
 なぜか？
 
-理由は、React は web event で更新されないからと、`message`イベントのコールバック関数は、worker に`addEventListener('message')`をアタッチした時点の state の値しか読み取れなくなるからである。
+理由は、React は web event で更新されないからと、`message`イベントのコールバック関数は、worker に`addEventListener('message')`をアタッチした時点の state の値しか読み取れなくなるからです。
 
 つまり、
 
 ```TypeScript
-const [dependencies, setDependencies] = useState<iDependencyState[]>([]);
+const [data, setData] = useState<iDataState[]>([]);
 ```
 
-マウント時にイベントリスナを Worker へアタッチしたので、その時点では state `dependencies`の値は初期値の空配列です。
+マウント時にイベントリスナを Worker へアタッチしたので、その時点では state `data`の値は初期値の空配列です。
 
-そしてイベントリスナをアタッチするとその時点の state `dependencies`にしかアクセスできなくなるため、いくら他で`dependenceis`を更新しようとも常にアタッチ時の`dependencies`を取得することになるのです。
+そしてイベントリスナをアタッチするとその時点の state `data`にしかアクセスできなくなるため、いくら他で`data`を更新しようとも常にアタッチ時の`data`を取得することになるのです。
 
 厄介なのが、setState 関数はアタッチ時の state と最新の state 両方に影響できるみたいで両方更新されます。
+
+そのため、この場合であれば、別の場所で`data`が更新されていても`message`イベントのコールバックからsetStateすると空配列に対する更新が最新のstateへ上書きされてしまうのです。
 
 ということでイベントリスナをつけるとその時点の state だけを参照してしまうということがわかりました。
 
@@ -805,9 +792,9 @@ const [dependencies, setDependencies] = useState<iDependencyState[]>([]);
 
 ```diff
 
-const TypingLibsProvider: React.FC<iProps> = ({ children }) => {
--   const [dependencies, setDependencies] = useState<iDependencyState[]>([]);
-+   const dependencies = useRef<iDependencyState[]>([]);
+const ManageWorkercomponent = ({ children }) => {
+-   const [data, setData] = useState<iDataState[]>([]);
++   const data = useRef<iDataState[]>([]);
     // ...
 }
 ```
@@ -828,21 +815,103 @@ const TypingLibsProvider: React.FC<iProps> = ({ children }) => {
                 );
             }
         };
-    }, [dependencies]);
+    }, [data]);
 ```
 
-state `dependencies`の更新のたびにイベントリスナを再度アタッチします。こうすることで常に最新の値にアクセスできるようになります。
+state `data`の更新のたびにイベントリスナを再度アタッチします。こうすることで常に最新の値にアクセスできるようになります。
 
 ということで React の理を web イベントのコールバックに含める場合は上記の工夫が必須となります。
 
 ## これまでの話をまとめて webworker のカスタムフックを作る
+
+汎用的なものではなく先の話に特化したフックです。
+
+データがロード済かどうかを管理するstate `data`と、
+データの中身を保存しておく`dataMap`を扱い、
+
+workerとやり取りして２つの値を更新しその値を返します。
+
+```TypeScript
+import React, { useState, useEffect, useRef } from "react"
+
+
+export const useFetchDataWorker = (): [
+    iData, Map<string, string> | undefined
+] => {
+    const worker = useRef<Worker>();
+    const [data, setData] = useState<iData[]>([]);
+    const dataMap = useRef<Map<string, string>>(new Map<string, string>());
+
+    useEffect(() => {
+        if (window.Worker && agent.current === undefined) {
+            agent.current = new Worker(
+                new URL('/src/worker/your.worker.ts', import.meta.url),
+                { type: 'module' }
+            );
+            agent.current.addEventListener('message', handleWorkerMessage);
+        }
+
+        return () => {
+            if (window.Worker && agent.current) {
+                agent.current.removeEventListener(
+                    'message',
+                    handleWorkerMessage
+                );
+                agent.current.terminate();
+                agent.current = undefined;
+            }
+        };
+    }, []);
+
+    // `data`の毎度更新のたびにイベントリスナを付け替える
+    useEffect(() => {
+        if (window.Worker && agent.current === undefined) {
+            agent.current.addEventListener('message', handleWorkerMessage);
+        }
+        return () => {
+            if (window.Worker && agent.current) {
+                agent.current.removeEventListener(
+                    'message',
+                    handleWorkerMessage
+                );
+            }
+        };
+    }, [data]);
+
+    // 毎度イベントリスナを付け替えするのでそのままsetStateして問題ない
+    const handleWorkerMessage = (event: MessageEvent<yourMessageType>) => {
+        const { dataId, dataMap } = e.data;
+
+        // Update dependencies, dependencyMap...
+        // 配列stateの更新方法は公式を見てください...
+    }
+
+    const requestFetchLibrary = (dataId: string) => {
+        setData([
+            ...data, { dataId, state: "loading" }
+        ]);
+        if(agent.current !== undefined) {
+            agent.current.postMessage({
+                dataId
+            });
+        }
+    }
+
+    return [data, dataMap.current];
+}
+```
+
+useRefで参照している値（dataMap）を返しており、更新されていない値を渡す可能性があるように見えますが、
+`dataMap`の更新は常に`data`の更新と同時に実施するため、再レンダリングをトリガーし両値の更新が担保されます。
+
+TODO: 動作検証のこと
 
 ## まとめ
 
 -   関数コンポーネントで worker インスタンスは`useRef`を使って保持すること。
 -   もしくは class コンポーネントの field として保持すること
 -   webpack でバンドルされるライブラリのグローバルスコープが`DedicatedWorkerGlobalScope`以外にならないか確認すること
--   Reactive な値を web イベントハンドラの中で使う場合、`useState`の代わりに`useRef`を使うか、イベントリスナの付け替えが必須である
+-   Reactive な値を web イベントハンドラの中で使う場合、例えば`useState`の代わりに`useRef`を使うか、イベントリスナの付け替えが必須である
 
 ## 参考
 

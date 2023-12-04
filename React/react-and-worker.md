@@ -514,6 +514,27 @@ Counter.worker.ts:18 [Counter.worker] running...
 
 ## 設定
 
+webpack 5 でのお話です。
+
+基本公式の通りでいいと思います。
+
+https://webpack.js.org/guides/web-workers/
+
+リンクのページでは webpack.config.js の具体的な設定は載せていませんが、以下の通りで問題なく動いています。
+
+```JavaScript
+module.exports = {
+    // target: "web",   // default,
+    // TODO: コードコピペして
+}
+```
+
+重要なポイントは
+
+-   `globalObject: 'self'`
+-   `entry`に worker ファイルを含める
+-   TODO: `entry`の worker ファイルの path は...webpack.config.js のファイルがあるディレクトリから見た path でいいのかしら？
+
 #### webpack5 での worker の使い方について
 
 https://webpack.js.org/guides/web-workers/#root
@@ -585,9 +606,9 @@ export { getModelByPath } from './getModelByPath';
 export { logger } from "./logger";
 ```
 
-`src/utils/index.tsx`はその内に`./getModelByPath`というmonaco-editorを内にimportしているモジュールを取りこんでいた。
+`src/utils/index.tsx`はその内に`./getModelByPath`という monaco-editor を内に import しているモジュールを取りこんでいた。
 
-webpackは、ワーカーがこの`src/utils/index.tsx`をimportすると、ワーカーファイルが必要とする依存関係をすべてワーカーのためにひとつにバンドルする。
+webpack は、ワーカーがこの`src/utils/index.tsx`を import すると、ワーカーファイルが必要とする依存関係をすべてワーカーのためにひとつにバンドルする。
 
 そのためにワーカー単体では全く関係ない`monaco-editor`モジュールを取り込むことになり、結果`window`前提のワーカーとなってしまった。
 
@@ -597,7 +618,7 @@ webpack 詳しい人ならば簡単に避けられる話かもしれない。
 
 #### ワーカーが変な依存関係をしていたら調べるといい場所
 
-Chromeのデベロッパーツールの`source`より。
+Chrome のデベロッパーツールの`source`より。
 
 左側のペインの`page`内容が...
 
@@ -612,7 +633,7 @@ fetchLibs_worker_ts_....ts
 
 みたいに並んでいる。
 
-調べたいworkerが`fetchLibs_worker_ts...`だとしたらそいつをクリックして
+調べたい worker が`fetchLibs_worker_ts...`だとしたらそいつをクリックして
 
 ```explorer
 
@@ -625,10 +646,9 @@ fetchLibs_worker_ts_....ts
 
 みたいにひらく。
 
-ここの内容が`fetchLIbs_worker_ts..`の依存関係である。
+ここの内容がそのワーカー`fetchLIbs_worker_ts..`の依存関係一覧である。
 
-依存関係がおかしいと思ったらここの内容を調べてみよう。
-
+依存関係がおかしいと思ったらここの内容を調べておかしな依存関係が含まれていないかみてみよう。
 
 ## まとめ
 

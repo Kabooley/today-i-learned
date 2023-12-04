@@ -543,6 +543,8 @@ https://webpack.js.org/guides/web-workers/#root
 
 ## webpack で webworker を扱ううえでの注意
 
+## 1. バンドルする関係上予期せぬライブラリが依存関係に含まれる
+
 webpack は worker ファイルのの依存関係をすべてひとつにバンドルします。
 
 すると以下のようなエラーに遭遇することがあります。
@@ -563,7 +565,7 @@ browser.js:131 Uncaught (in promise) ReferenceError: window is not defined
 
 `ReferenceError: window is not defined`というエラー。
 
-本来、webworker のグローバル変数は`DedicatedWorlerGlobalScope`というものになるはずで、
+本来、webworker のグローバル変数は`DedicatedWorkerGlobalScope`というものになるはずで、
 
 `./node_modules/monaco-editor/esm/vs/base/browser/browser.js`という知らん奴がどういうわけかワーカー環境の中で`window`オブジェクトを参照しようとしているというエラーです。
 
@@ -650,7 +652,198 @@ fetchLibs_worker_ts_....ts
 
 依存関係がおかしいと思ったらここの内容を調べておかしな依存関係が含まれていないかみてみよう。
 
+## 2. web event では React は更新されない
+
+worker を使うにあたって`postMessage`でやり取りする以上`message`イベントでワーカーからのメッセージを受信することになります。
+
+例えば以下のようにコールバック関数で state の値を読み取っても最新の state の値を取得してくれません。
+
+例：依存関係をリクエストして worker に取得してもらい、その結果を受信したら依存関係を管理する state を更新するコンポーネント。
+
+リクエスト段階ではそのリクエストしたモジュールの state プロパティを`loading`に、
+
+正常に受信出来たら`loaded`に更新する。
+
+```TypeScript
+// A component that manages worker.
+import React, {
+    createContext,
+    useState,
+    useEffect,
+    useRef,
+    useContext,
+} from 'react';
+
+interface iDependencyState {
+    moduleName: string;
+    version: string;
+    state: 'loading' | 'loaded';
+};
+
+const TypingLibsProvider: React.FC<iProps> = ({ children }) => {
+    // dependencies will be like this...
+    // [
+    //      { moduleName: "react", version: "17.2.0", state: "loaded" },
+    //      { moduleName: "react-dom", version: "17.2.0", state: "loading" },
+    // ]
+    const [dependencies, setDependencies] = useState<iDependencyState[]>([]);
+    const agent = useRef<Worker>();
+
+    // Attach message event on mount.
+    useEffect(() => {
+        if (window.Worker && agent.current === undefined) {
+            agent.current = new Worker(
+                new URL('/src/worker/fetchLibrary.worker.ts', import.meta.url),
+                { type: 'module' }
+            );
+            agent.current.addEventListener('message', handleWorkerMessage);
+        }
+
+        return () => {
+            if (window.Worker && agent.current) {
+                agent.current.removeEventListener(
+                    'message',
+                    handleWorkerMessage
+                );
+                agent.current.terminate();
+                agent.current = undefined;
+            }
+        };
+    }, []);
+
+    // make sure dependencies is updated correctly.
+    useEffect(() => {
+        console.log('[TypingLibsContext] did update');
+        console.log(dependencies);
+    });
+
+    // This callback function cannot access latest reactives...
+    const handleWorkerMessage = (e: MessageEvent<iResponseFetchLibs>) => {
+        const { moduleName, version, dependenciesMap } = e.data.payload;
+
+        console.log(`Got response of ${moduleName}@${version}`);
+        // THIS `dependencies` is always empty!!!!
+        console.log(dependencies);
+
+        // ...
+    };
+
+    const requestFetchTypings = (moduleName: string, version: string) => {
+
+        const updatedDeps: iDependencyState[] = [
+            ...dependencies,
+            {
+                moduleName: moduleName,
+                version: version,
+                state: 'loading',
+            },
+        ];
+        setDependencies(updatedDeps);
+
+        if (agent.current !== undefined) {
+            agent.current!.postMessage({
+                order: 'RESOLVE_DEPENDENCY',
+                payload: {
+                    moduleName,
+                    version,
+                },
+            } as iRequestFetchLibs);
+        }
+    };
+
+    return (
+        <TypingLibsContext.Provider value={dependencies}>
+            <RequestFetchContext.Provider value={requestFetchTypings}>
+                {children}
+            </RequestFetchContext.Provider>
+        </TypingLibsContext.Provider>
+    );
+};
+
+```
+
+簡単な流れ：
+
+-   `requestFetchTypings()`を呼び出して取得したいライブラリをリクエストする
+-   `requestFetchTypings()`はリクエストされたライブラリをひとまず dependencies に`state: "loading"`で登録する
+-   worker にリクエストする
+-   `handleWorkerMessage`が worker からのレスポンスを受信する。
+-   `dependencies`の該当ライブライのプロパティ`state:"loaded"`に更新する。
+
+このとき`handleWorkerMessage`から当然最新の`dependencies`が取得できることが期待されます。
+
+しかし`dependencies`は空の配列を取得します。
+
+なぜか？
+
+理由は、React は web event で更新されないからと、`message`イベントのコールバック関数は、worker に`addEventListener('message')`をアタッチした時点の state の値しか読み取れなくなるからである。
+
+つまり、
+
+```TypeScript
+const [dependencies, setDependencies] = useState<iDependencyState[]>([]);
+```
+
+マウント時にイベントリスナを Worker へアタッチしたので、その時点では state `dependencies`の値は初期値の空配列です。
+
+そしてイベントリスナをアタッチするとその時点の state `dependencies`にしかアクセスできなくなるため、いくら他で`dependenceis`を更新しようとも常にアタッチ時の`dependencies`を取得することになるのです。
+
+厄介なのが、setState 関数はアタッチ時の state と最新の state 両方に影響できるみたいで両方更新されます。
+
+ということでイベントリスナをつけるとその時点の state だけを参照してしまうということがわかりました。
+
+#### 解決策
+
+次の選択肢から選び取ることになります。
+
+1. useState を使うのをやめて useRef で管理する（参照を持たせる）。
+2. 毎レンダリングで`addEventListener`を付け替える。
+
+1 の方法を採用するか否かは、値の更新が再レンダリングを起こすか起こさないかを天秤にかけて決めることになります。
+
+`useRef`の利用ならば ref の参照を参照するだけになるので常にその最新の値をコールバック関数からでも追跡できます。ただし`useRef`の値の更新は再レンダリングを起こしません。
+
+```diff
+
+const TypingLibsProvider: React.FC<iProps> = ({ children }) => {
+-   const [dependencies, setDependencies] = useState<iDependencyState[]>([]);
++   const dependencies = useRef<iDependencyState[]>([]);
+    // ...
+}
+```
+
+２の方法は再レンダリングをやたら引き起こしたくない場合
+
+```TypeScript
+// 先のコードに追加する。
+    useEffect(() => {
+        if (window.Worker && agent.current !== undefined) {
+            agent.current.addEventListener('message', handleWorkerMessage);
+        }
+        return () => {
+            if (window.Worker && agent.current !== undefined) {
+                agent.current.removeEventListener(
+                    'message',
+                    handleWorkerMessage
+                );
+            }
+        };
+    }, [dependencies]);
+```
+
+state `dependencies`の更新のたびにイベントリスナを再度アタッチします。こうすることで常に最新の値にアクセスできるようになります。
+
+ということで React の理を web イベントのコールバックに含める場合は上記の工夫が必須となります。
+
+## これまでの話をまとめて webworker のカスタムフックを作る
+
 ## まとめ
 
 -   関数コンポーネントで worker インスタンスは`useRef`を使って保持すること。
 -   もしくは class コンポーネントの field として保持すること
+-   webpack でバンドルされるライブラリのグローバルスコープが`DedicatedWorkerGlobalScope`以外にならないか確認すること
+-   Reactive な値を web イベントハンドラの中で使う場合、`useState`の代わりに`useRef`を使うか、イベントリスナの付け替えが必須である
+
+## 参考
+
+https://stackoverflow.com/questions/60540985/react-usestate-doesnt-update-in-window-events

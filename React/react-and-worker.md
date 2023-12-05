@@ -7,13 +7,17 @@ React + WebWorker を実現するために試行錯誤した記録とたどり�
 -   [環境](#環境)
 -   [React は値を保持しない](#Reactは値を保持しない)
 -   [よく見かける提案](#よく見かける提案)
--   [検証コード](#検証コード)
+-   [検証](#検証)
 -   [message がやり取りできない原因](#message-がやり取りできない原因)
 -   [worker インスタンスを維持するために useMemo()が使えない理由](<#workerインスタンスを維持するためにuseMemo()が使えない理由>)
 -   [解決策: `useRef`を使う](#解決策-userefを使う)
 -   [class コンポーネントはまだ現役](#classコンポーネントはまだ現役)
 -   [React+Webpack での worker の扱い方](#react+webpack-での-worker-の扱い方)
 -   [webpack で webworker を扱ううえでの注意](#webpackでwebworkerを扱ううえでの注意)
+-   [1. バンドルする関係上予期せぬライブラリが依存関係に含まれる](#1-バンドルする関係上予期せぬライブラリが依存関係に含まれる)
+-   [その他注意点: web event では React は更新されない](#その他注意点-web-event-では-react-は更新されない)
+-   [これまでの話をまとめて webworker のカスタムフックを作る](#これまでの話をまとめて-webworker-のカスタムフックを作る)
+-   [まとめ](#まとめ)
 
 ## 環境
 
@@ -63,6 +67,8 @@ const worker: Worker = useMemo(
 マウント時にこれを実行すれば関数コンポーネントがアンマウントされない限り worker インスタンスは毎レンダリングをまたがって保持されるはずです。
 
 検証してみましょう。
+
+## 検証
 
 #### 検証コード
 
@@ -583,7 +589,6 @@ browser.js:131 Uncaught (in promise) ReferenceError: window is not defined
 
 ```TypeScript
 // awesome.worker.ts
-
 import { logger } from '../utils';
 
 // ...以下略
@@ -652,7 +657,7 @@ fetchLibs_worker_ts_....ts
 
 依存関係がおかしいと思ったらここの内容を調べておかしな依存関係が含まれていないかみてみよう。
 
-## 2. web event では React は更新されない
+## その他注意点: web event では React は更新されない
 
 worker を使うにあたって`postMessage`でやり取りする以上`message`イベントでワーカーからのメッセージを受信することになります。
 
@@ -775,7 +780,7 @@ const [data, setData] = useState<iDataState[]>([]);
 
 厄介なのが、setState 関数はアタッチ時の state と最新の state 両方に影響できるみたいで両方更新されます。
 
-そのため、この場合であれば、別の場所で`data`が更新されていても`message`イベントのコールバックからsetStateすると空配列に対する更新が最新のstateへ上書きされてしまうのです。
+そのため、この場合であれば、別の場所で`data`が更新されていても`message`イベントのコールバックから setState すると空配列に対する更新が最新の state へ上書きされてしまうのです。
 
 ということでイベントリスナをつけるとその時点の state だけを参照してしまうということがわかりました。
 
@@ -826,17 +831,17 @@ state `data`の更新のたびにイベントリスナを再度アタッチし�
 
 汎用的なものではなく先の話に特化したフックです。
 
-データがロード済かどうかを管理するstate `data`と、
+データがロード済かどうかを管理する state `data`と、
 データの中身を保存しておく`dataMap`を扱い、
 
-workerとやり取りして２つの値を更新しその値を返します。
+worker とやり取りして２つの値を更新しその値を返します。
 
 ```TypeScript
 import React, { useState, useEffect, useRef } from "react"
 
 
 export const useFetchDataWorker = (): [
-    iData, Map<string, string> | undefined
+    iData, Map<string, string> | undefined, (moduleName: string, version: string) => void
 ] => {
     const worker = useRef<Worker>();
     const [data, setData] = useState<iData[]>([]);
@@ -897,14 +902,12 @@ export const useFetchDataWorker = (): [
         }
     }
 
-    return [data, dataMap.current];
+    return [data, dataMap.current, requestFetchLibrary];
 }
 ```
 
-useRefで参照している値（dataMap）を返しており、更新されていない値を渡す可能性があるように見えますが、
+useRef で参照している値（dataMap）を返しており、更新されていない値を渡す可能性があるように見えますが、
 `dataMap`の更新は常に`data`の更新と同時に実施するため、再レンダリングをトリガーし両値の更新が担保されます。
-
-TODO: 動作検証のこと
 
 ## まとめ
 

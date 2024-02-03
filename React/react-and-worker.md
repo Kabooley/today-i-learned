@@ -526,20 +526,69 @@ webpack 5 でのお話です。
 
 https://webpack.js.org/guides/web-workers/
 
-リンクのページでは webpack.config.js の具体的な設定は載せていませんが、以下の通りで問題なく動いています。
+リンクのページでは webpack.config.js の具体的な設定は載っていませんが、以下の通りで問題なく動いています。
 
 ```JavaScript
+const path = require('path');
+const HtmlWebPackPlugin = require('html-webpack-plugin');
+const ReactRefreshWebpackPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
+
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
 module.exports = {
-    // target: "web",   // default,
-    // TODO: コードコピペして
-}
+    mode: 'development',
+    entry: {
+        index: './src/index.tsx',
+        'your.worker': './src/worker/your.worker.ts',
+        'another.worker': './src/worker/another.worker.ts',
+    },
+    resolve: {
+        extensions: ['.js', '.jsx', '.tsx', '.ts'],
+    },
+    output: {
+        globalObject: 'self',
+        filename: '[name].bundle.js',
+        path: path.resolve(__dirname, 'dist'),
+    },
+    module: {
+        rules: [
+            {
+                test: /\.(js|jsx|tsx|ts)$/,
+                exclude: /node_modules/,
+                use: [
+                    {
+                        loader: require.resolve('babel-loader'),
+                        options: {
+                            presets: [
+                                '@babel/preset-env',
+                                '@babel/preset-typescript',
+                                '@babel/preset-react',
+                            ],
+                            plugins: [
+                                isDevelopment &&
+                                    require.resolve('react-refresh/babel'),
+                            ].filter(Boolean),
+                        },
+                    },
+                ],
+            }
+        ],
+    },
+    plugins: [
+        new HtmlWebPackPlugin({
+            template: 'src/index.html',
+        }),
+        isDevelopment && new ReactRefreshWebpackPlugin(),
+    ].filter(Boolean),
+};
 ```
 
 重要なポイントは
 
 -   `globalObject: 'self'`
 -   `entry`に worker ファイルを含める
--   TODO: `entry`の worker ファイルの path は...webpack.config.js のファイルがあるディレクトリから見た path でいいのかしら？
+
+`target`プロパティがデフォルト(`web`)のままだけど問題なくworkerは生成されるみたいです。
 
 #### webpack5 での worker の使い方について
 
@@ -549,7 +598,7 @@ https://webpack.js.org/guides/web-workers/#root
 
 ## webpack で webworker を扱ううえでの注意
 
-## 1. バンドルする関係上予期せぬライブラリが依存関係に含まれる
+## バンドルする関係上予期せぬライブラリが依存関係に含まれる
 
 webpack は worker ファイルのの依存関係をすべてひとつにバンドルします。
 

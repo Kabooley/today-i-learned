@@ -1,16 +1,17 @@
 # React で `lodash.throttle` や `setTimeout` など遅延関数を使う方法の模索
 
-TODO: テスト環境含めて TIL へプッシュ
+## この記事は何？
 
-安直に`useCallback`等を使えば行けるのでは？と考えがちになってしまう自分が今後同じ徒労を経験しないための覚書。
+React で`lodash`の`debounce`や`throttle`を使う方法はないかと探している人向けの記事。
 
-`lodash`に限らず React 向けに作られていないライブラリを React で使うときの一般的な話として役立つかも。
+安直に`useCallback`等を使えば行けるのでは？と考えがちになってしまう自分が今後同じ轍を踏まないために経験を記す。
 
 ## 結論
 
-- `lodash`は React 向けのライブラリではないのでラッピングが大変面倒である
+- `lodash`は React 向けのライブラリではないのでラッピングが大変面倒でかつ使用状況に制限がある
 - `setTimeout`と`useEffect`の組み合わせがシンプルで分かりやすい
 - `setTimeout`と`useEffect`からなるカスタム・フックは、汎用的にするよりも使用場面に特化させれば便利である
+- 一番手っ取り早いのは`react-use`の各タイマー関数を使うべき
 
 ## summary
 
@@ -18,13 +19,12 @@ TODO: テスト環境含めて TIL へプッシュ
 - [`lodash.throttle` + `useCallback`](#`lodash.throttle`-+-`useCallback`)
 - [`useRef` + `useEffect`](#`useRef`-+-`useEffect`)
 - [遅延関数を作るのに lodash を使わない例](#遅延関数を作るのにlodashを使わない例)
+- [遅延関数のカスタムフックを作ってみる](#遅延関数のカスタムフックを作ってみる)
 - [余談：`lodash`ライブラリ全部インストールするな](#余談：`lodash`ライブラリ全部インストールするな)
 
 ## Lodash `throttle`は React で使えるか？
 
-_class コンポーネントで使う場合は考慮しません_
-
-https://stackoverflow.com/a/54666498/22007575
+※class コンポーネントで使う場合を扱いません
 
 かねてより、React では純粋関数が求められている。
 
@@ -44,26 +44,25 @@ React でこうした遅延関数を使う方法がないか模索する。
 
 ## `lodash.throttle` + `useCallback`
 
-`useCallbacK`は、依存関係が変化するたびに再作成されるので、再作成前の関数と別物とになることから遅延を発生させる機能を持った関数に使うべきでない。
+`useCallbacK`は、依存関係が変化するたびに再作成されるので、再作成前の関数と別物になることから遅延を発生させる機能を持った関数に使うべきでない。
 
-ただし依存関係を含めないならば、つまり一度`throttled`を生成して以降変更させないならば使うことができる。
+ただし`useCallbacK`の依存関係に何も含めないならば、つまり一度`throttled`を生成して以降変更させないならば使うことができる。
 
 ```JavaScript
-// Works: 依存関係がなく再作成されないから。
+// GOOD: 依存関係がなく再作成されないから。
 const throttled = useCallback(throttle(newValue => console.log(newValue), 1000), []);
 
-// Not works as expected：依存関係の変化のたびに`throttled`は「新しくなる」。
+// BAD：依存関係の変化のたびに`throttled`は「新しくなる」。
 const throttled = useCallback(throttle(() => console.log(value), 1000), [value]);
 ```
 
 後者は value の値が変化するたびに遅延を発生させずに即時実行されてしまう。
 
-#### 検証
+#### 検証: `lodash.throttle` + `useCallback`において`useCallback`の依存関係有無によって結果が変わるか
 
-- `useCallback`に依存関係を含めると、毎レンダリング時に再生成される例：
+`useCallback`に依存関係を含めると、毎レンダリング時に再生成される例：
 
-input フォームへ連続で入力を続けたら、１秒ごとにコンソールへログを出力するはずが
-毎入力ごとに反応している。
+input フォームへ連続で入力を続けたら、１秒ごとにコンソールへログを出力するはずが毎入力ごとに反応している。
 
 ```TypeScript
 import React, { useCallback, useState } from "react";
@@ -115,9 +114,13 @@ const ReactalizeLodash = () => {
 };
 ```
 
+ということで、
+
 依存関係なし`useCallback`で throttle を囲う方法はアリ。
 
-## `useRef` + `useEffect`
+依存関係を含めなくてはならない場合は`lodash.throttle`の使用を見直す必要がある。
+
+#### `useRef` + `useEffect`
 
 そもそも lodash は React 向けに作られているわけじゃないので`useRef` + `useEffect`の組み合わせで React の理の外に出すべき。
 
@@ -171,7 +174,11 @@ https://stackoverflow.com/questions/29526739/stopping-a-timeout-in-reactjs?rq=3
 
 要素の連続で発生する onresize イベントに対して一番最後のイベントにのみハンドラが反応するようにタイマーを使う。
 
-処理名の流れ：
+サンプルコードの説明：
+
+リサイズ可能な要素をリサイズすると、リサイズしてから遅れてリサイズ後の幅の値をログに出力する。
+
+処理の流れ：
 
 - onresize イベントが発生する
 - `sectionWidth`が更新される
@@ -230,7 +237,7 @@ const Timer = () => {
 
 こちらのほうが心理的に安心。
 
-lodash を React でどうにか使う場合はどこか見落としがないか常に不安なので。
+lodash という JavaScript 向けライブラリを React でどうにか使う場合はどこか見落としがないか常に不安なので。
 
 タイマーを発生させるかどうかはどの値を`useEffect`の依存関係に渡すかで決められて便利。
 
@@ -238,7 +245,7 @@ lodash を React でどうにか使う場合はどこか見落としがないか
 
 よくみるやつ。
 
-以下の例はネットで検索するとしょっちゅう出てくるよくない例です。
+以下の例はネットで検索するとしょっちゅう出てくるよくない例。
 
 ```TypeScript
 import React, { useEffect, useRef } from "react";
@@ -398,7 +405,7 @@ export default Timer;
 
 リサイズを終えたら実行され、`rect`が更新される。
 
-## 余談：`lodash`ライブラリ全部インストールするな
+## 余談：`lodash`ライブラリ全部インストールしてはならない
 
 lodash ライブラリは巨大である。
 
@@ -425,6 +432,12 @@ $ npm install --dev @types/lodash.debounce
 import debounce from 'lodash.debounce';
 ```
 
-参考：
+## 参考
+
+https://stackoverflow.com/a/54666498/22007575
 
 https://stackoverflow.com/a/43479515
+
+`react-use`では`useDebounce`と名付けつつ中身は`setTimeout`を使っていた。
+
+https://github.com/streamich/react-use/blob/master/src/useDebounce.ts

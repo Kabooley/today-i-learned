@@ -10,7 +10,7 @@
 
 `feat_counter`ブランチでのコミットがたくさん生成されてしまったとする。
 
-（たとえば想定の作成時間を超えて完成させることになり、いったんさぎゅうを区切る段階でここまでの作業内容をコミットした積み重ねがあったからなど）
+（たとえば想定の作成時間を超えて完成させることになり、いったん作業を区切る段階でここまでの作業内容をコミットした積み重ねがあったからなど）
 
 一方、development ブランチから見たら`feat_counter`ブランチが完成したコミットだけが必要であって、
 
@@ -30,9 +30,11 @@ https://backlog.com/ja/git-tutorial/stepup/34/
 
 https://backlog.com/ja/git-tutorial/stepup/27/
 
-## 例
+## `git merge --squash BRANCH_NAME`
 
-`feat_counter`ブランチ上のコミット５つを一つのコミットに圧縮する方法。
+`git merge --squash BRANCH_NAME`は BRANCH_NAME のすべてのコミットを一つにして現在のブランチにコミットするコマンドである。
+
+以下、`feat_counter`ブランチ上のコミット５つ**すべて**を一つのコミットに圧縮して`development`へコミットする方法。
 
 ```bash
 $ git branch
@@ -50,13 +52,43 @@ $ git commit -m "Feat: WIP Implementing counter. 4"
 $ git commit -m "Feat: Done Implementing counter. 5"
 
 $ git switch development
-$
-$
-$
-$
-$
-$
+$ git merge --squash feat_counter
+Updating xxxx....xxxxxxx
+Fast-forward
+Squash commit -- not updating HEAD
+ counter.ts | 36 ++++++++++++++++++++++++++++--------
+ 1 file changed, 28 insertions(+), 8 deletions(-)
+$ git commit
+# エディタが開いてコミットメッセージを入力するよう促される。
 ```
+
+## `git rebase -i`
+
+```bash
+$ git branch
+* development
+  main
+
+$ git branch feat_form
+$ git switch feat_form
+
+# 以下の通り、`feat_form`上で計5つのコミットを重ねてブランチの目標を達成したとする
+$ git commit -m "Feat: WIP Implementing form. 1"
+$ git commit -m "Feat: WIP Implementing form. 2"
+$ git commit -m "Feat: WIP Implementing form. 3"
+$ git commit -m "Feat: WIP Implementing form. 4"
+$ git commit -m "Feat: Done Implementing form. 5"
+
+# `git rebase -i `に続けるのは圧縮したコミットをコミットする対象のブランチ
+$ git rebase -i development
+# エディタが開いて変更内容を選択するよう求められる
+#
+```
+
+> 複数のコミットをまとめて圧縮したい場合は、 git rebase -i を使用できます。
+> feature_branch を使用している場合は、 git rebase -i main を実行します。これによりエディター ウィンドウが開き、pick という接頭辞が付いた多数のコミットがリストされます。最初の変更を除くすべての変更をスカッシュすることができます。これにより、Git はそれらの変更をすべて保持し、最初のコミットにスカッシュするように指示されます。それが完了したら、main へチェックアウトし、feature_branch をマージします。
+
+## 以下、コマンドのテストのためにこのファイルを変更した内容
 
 ## 変更その１
 

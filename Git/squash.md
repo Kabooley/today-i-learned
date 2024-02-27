@@ -73,20 +73,76 @@ $ git branch feat_form
 $ git switch feat_form
 
 # 以下の通り、`feat_form`上で計5つのコミットを重ねてブランチの目標を達成したとする
-$ git commit -m "Feat: WIP Implementing form. 1"
-$ git commit -m "Feat: WIP Implementing form. 2"
-$ git commit -m "Feat: WIP Implementing form. 3"
-$ git commit -m "Feat: WIP Implementing form. 4"
-$ git commit -m "Feat: Done Implementing form. 5"
+$ git commit -m "Feat: WIP Implementing form.ts 1"
+$ git commit -m "Feat: WIP Implementing form.ts 2"
+$ git commit -m "Feat: WIP Implementing form.ts 3"
+$ git commit -m "Feat: WIP Implementing form.ts 4"
+$ git commit -m "Feat: Done Implementing form.ts 5"
 
 # `git rebase -i `に続けるのは圧縮したコミットをコミットする対象のブランチ
 $ git rebase -i development
 # エディタが開いて変更内容を選択するよう求められる
+# 統合したいコミットの接頭辞をsquashにする
+# コミット内容の確認が促される
+$ git switch development
+$ git merge feat_form
+# これでfeat_form上のコミット5つがひとつのコミットとしてdevelopmentへマージされた。
+```
+
+以下のようなテキストがエディタに現れる。
+
+接頭辞`pick`を後半に書かれている通りの任意の接頭辞に変更することでその通りの変更が施されるという感じ。
+
+e.g. `pick e8131e6 Feat: WIP Implementing form.ts 2` -> `squash e8131e6 Feat: WIP Implementing form.ts 2`
+
+pick のコミットに squash のコミットが統合される。
+
+```bash
+pick acbce48 Feat: WIP Implementing form.ts 1
+pick e8131e6 Feat: WIP Implementing form.ts 2
+pick 9bce99b Feat: WIP Implementing form.ts 3
+pick 924091f Feat: WIP Implementing form.ts 4
+pick d72f328 Feat: WIP Implementing form.ts 5
+
+# Rebase 3c57e96..d72f328 onto 924091f (5 commands)
 #
+# Commands:
+# p, pick <commit> = use commit
+# r, reword <commit> = use commit, but edit the commit message
+# e, edit <commit> = use commit, but stop for amending
+# s, squash <commit> = use commit, but meld into previous commit
+# f, fixup <commit> = like "squash", but discard this commit's log message
+# x, exec <command> = run command (the rest of the line) using shell
+# b, break = stop here (continue rebase later with 'git rebase --continue')
+# d, drop <commit> = remove commit
+# l, label <label> = label current HEAD with a name
+# t, reset <label> = reset HEAD to a label
+# m, merge [-C <commit> | -c <commit>] <label> [# <oneline>]
+# .       create a merge commit using the original merge commit's
+# .       message (or the oneline, if no original merge commit was
+# .       specified). Use -c <commit> to reword the commit message.
+#
+# These lines can be re-ordered; they are executed from top to bottom.
+#
+# If you remove a line here THAT COMMIT WILL BE LOST.
+#
+# However, if you remove everything, the rebase will be aborted.
+#
+# Note that empty commits are commented out
+
 ```
 
 > 複数のコミットをまとめて圧縮したい場合は、 git rebase -i を使用できます。
 > feature_branch を使用している場合は、 git rebase -i main を実行します。これによりエディター ウィンドウが開き、pick という接頭辞が付いた多数のコミットがリストされます。最初の変更を除くすべての変更をスカッシュすることができます。これにより、Git はそれらの変更をすべて保持し、最初のコミットにスカッシュするように指示されます。それが完了したら、main へチェックアウトし、feature_branch をマージします。
+
+rebase から merge したあとの git log
+
+```bash
+git log --oneline
+08710a6 (HEAD -> main, test_git_rebase_on_squashmd) Feat: WIP Implementing form.ts 1
+# feat_formブランチを切る前のdevelopmentブランチの最後のコミット
+3c57e96 Docs: WIP squash.md 1
+```
 
 ## 以下、コマンドのテストのためにこのファイルを変更した内容
 

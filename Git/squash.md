@@ -49,11 +49,31 @@ $ git commit -m "Feat: WIP Implementing counter. 3"
 $ git commit -m "Feat: WIP Implementing counter. 4"
 $ git commit -m "Feat: Done Implementing counter. 5"
 
-$ git switch development 
-$ 
-$ 
-$ 
-$ 
-$ 
-$ 
+$ git switch development
+$
+$
+$
+$
+$
+$
 ```
+
+## 変更その１
+
+変更その１を加えました。
+
+## 変更その２
+
+変更その２を加えました。
+
+## 変更その３
+
+変更その３を加えました。
+
+## 変更その４
+
+変更その４を加えました。
+
+## 変更その５
+
+変更その５を加えました。

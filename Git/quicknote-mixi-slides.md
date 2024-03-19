@@ -33,8 +33,7 @@ $ git ls-files --stage
 
 ```
 
-ちなみにディレクトリが追加されてもtreeオブジェクト（これもgitオブジェクトの一つ）は生成されず、blobオブジェクトしか生成されていないことがわかる。
-
+ちなみにディレクトリが追加されても tree オブジェクト（これも git オブジェクトの一つ）は生成されず、blob オブジェクトしか生成されていないことがわかる。
 
 -   git add した対象のファイルが git/index にもれなく追加されていることがわかる
 -   blob オブジェクトが生成されていることがわかる
@@ -62,24 +61,23 @@ $ git cat-file -p f409fb1d55405384b9835491907e0e719a486270
 
 https://stackoverflow.com/questions/56235287/what-does-git-ls-files-do-exactly-and-how-do-we-remove-a-file-from-it
 
-
-## commitするとは
+## commit するとは
 
 1. index オブジェクトから tree オブジェクトを生成
 2. commit オブジェクトを生成
-3. HEADを新しい commit ハッシュに書き換える
+3. HEAD を新しい commit ハッシュに書き換える
 
 ```bash
 # 先の続きからそのままコミットしたとして
 $ git commit -m "Docs: WIP note how to resolve reference error. 1"
 $ git log --oneline
-8d53fbf (HEAD -> modify_git_error_note) Docs: WIP note how to resolve reference 
+8d53fbf (HEAD -> modify_git_error_note) Docs: WIP note how to resolve reference
 error. 1
 ...
 $ git cat-file -p 8d53fbf
 tree 4d9ca95d60bad0f6bc52acc65d9dd5ab98e67529
 parent 232c1fc6f24e95cb7602bed70bdca2b5c81468ad
-author XXXXXX <0000000+XXXXXX@users.noreply.github.com> 1710761722 +0900   
+author XXXXXX <0000000+XXXXXX@users.noreply.github.com> 1710761722 +0900
 committer XXXXXX <0000000+XXXXXX@users.noreply.github.com> 1710761722 +0900
 
 Docs: WIP note how to resolve reference error. 1
@@ -101,50 +99,50 @@ $ git cat-file -p 4d9ca95d60bad0f6bc52acc65d9dd5ab98e67529
 100644 blob 13d428792f8ce808c102984279368c8c31b8440b    schedule.md
 040000 tree 59bedadb081da21e39f0e1c2c304a08f61f39085    security
 040000 tree d4ff4d4ad813b347e606fa7d3021791e75753d02    temporary
-$ 
-$ 
+$
+$
 ```
 
 コミットすると、
 
 1. tree オブジェクトの生成：
 
-リポジトリのルートディレクトリを含むすべてのディレクトリ分のtreeオブジェクトを生成する
+リポジトリのルートディレクトリを含むすべてのディレクトリ分の tree オブジェクトを生成する
 
-その際、変更があった部分だけ、新しいblobオブジェクトとtreeオブジェクトが生成され、
-変更がなかった部分は前回のtreeオブジェクトがコピーされる
+その際、変更があった部分だけ、新しい blob オブジェクトと tree オブジェクトが生成され、
+変更がなかった部分は前回の tree オブジェクトがコピーされる
 
 上記の通り、
 
-blobオブジェクトはファイル内容を、treeオブジェクトはディレクトリ内容を記録する。
+blob オブジェクトはファイル内容を、tree オブジェクトはディレクトリ内容を記録する。
 
-例えばBooksディレクトリ以下のgitオブジェクトを調べたかったらBooksのtreeオブジェクトのハッシュ値を改めてcat-fileすれば確認できる
+例えば Books ディレクトリ以下の git オブジェクトを調べたかったら Books の tree オブジェクトのハッシュ値を改めて cat-file すれば確認できる
 
-こうして**blobオブジェクトとtreeオブジェクトでコミットした瞬間のリポジトリの状態を再現できるようになっている**
+こうして**blob オブジェクトと tree オブジェクトでコミットした瞬間のリポジトリの状態を再現できるようになっている**
 
 2. commit オブジェクトの生成：
 
-上記のようにtreeオブジェクト、blobオブジェクトの生成が完了したらコミットオブジェクトを生成して、
+上記のように tree オブジェクト、blob オブジェクトの生成が完了したらコミットオブジェクトを生成して、
 
-上記の通り、ルートオブジェクトのtreeオブジェクト、parentオブジェクト（前回のコミット・オブジェクト）、作成者情報などが生成される
+上記の通り、ルートオブジェクトの tree オブジェクト、parent オブジェクト（前回のコミット・オブジェクト）、作成者情報などが生成される
 
 こうして、コミットオブジェクトは前回のコミットオブジェクトを参照しているのでコミットのつながりが把握できる
 
-3. HEADを新しいcommitハッシュへ書き換え：
+3. HEAD を新しい commit ハッシュへ書き換え：
 
-その前にrefsについて
+その前に refs について
 
 #### git references
 
-refsは特定のcommitを指すポインタのようなもの
+refs は特定の commit を指すポインタのようなもの
 
-そしてHEADはrefの一種である
+そして HEAD は ref の一種である
 
-refsには
+refs には
 
-- light weight tag: 特定のcommitオブジェクトを指すだけ
-- annotated tag: コメントがつけられるタグのこと
-- branch: light weight tagと変わらないが、保存場所が.git/refs/heads以下にある
+-   light weight tag: 特定の commit オブジェクトを指すだけ
+-   annotated tag: コメントがつけられるタグのこと
+-   branch: light weight tag と変わらないが、保存場所が.git/refs/heads 以下にある
 
 ブランチについて：
 
@@ -170,9 +168,9 @@ $ cat .git/refs/heads/main
 
 曰く、
 
-ブランチを生成すると、refsオブジェクトが生成される
+ブランチを生成すると、refs オブジェクトが生成される
 
-でこのrefsオブジェクトは`./git/refs/`へ保存される。
+でこの refs オブジェクトは`./git/refs/`へ保存される。
 
 そのため、ブランチ名に`/`を含めるとブランチ名の生成に制限がかかることになる。
 
@@ -180,17 +178,17 @@ $ cat .git/refs/heads/main
 
 `test/setup-test`というブランチを作ったとすると、
 
-`.git/refs/test/setup`というrefsが生成されることになるため、
+`.git/refs/test/setup`という refs が生成されることになるため、
 
-`.git/refs/test`というrefsは新規に作れなくなる
+`.git/refs/test`という refs は新規に作れなくなる
 
 結果`test`というブランチが作れなくなるということになる。
 
-HEADについて：
+HEAD について：
 
-HEADは現在のcommitオブジェクトを指す
+HEAD は現在の commit オブジェクトを指す
 
-なのでcheckoutするとHEADは書き換わる
+なので checkout すると HEAD は書き換わる
 
 ```bash
 $ git branch
@@ -202,5 +200,9 @@ $ cat .git/HEAD
     ref: refs/heads/modify_git_error_note
 # なのでたとえばブランチを移動すると
 $ git switch main
-
+$ cat .git/HEAD
+    ref: refs/heads/main
+# コミットハッシュ名でgit switchするとHEAD refsにはそのコミットハッシュ名が書き込まれる
 ```
+
+ということで、コミット時に git は HEAD ref オブジェクトを書き換えるが、

@@ -20,8 +20,11 @@ $ git config --global sequence.editor 'code --wait'
 
 https://qiita.com/ucan-lab/items/9b442e042988e2d7a35d
 
-
 ## unable to resolve reference 'refs/remotes/origin/test/setup-test': reference broken
+
+git push しようとしたらタイトルのようなエラーに遭遇した。
+
+.git/refs のオブジェクトに不具合があるという旨のエラーである。
 
 https://stackoverflow.com/questions/2998832/git-pull-fails-unable-to-resolve-reference-unable-to-update-local-ref
 
@@ -37,7 +40,7 @@ $ git branch
   main
 * test/setup-test
   view/improvement
-# 
+#
 $ git push origin test/setup-test
 error: update_ref failed for ref 'refs/remotes/origin/test/setup-test': cannot lock ref 'refs/remotes/origin/test/setup-test': unable to resolve reference 'refs/remotes/origin/test/setup-test': reference broken
 Everything up-to-date
@@ -48,7 +51,6 @@ $ find .git/refs
 .git/refs/remotes/origin
 .git/refs/remotes/origin/fix
 .git/refs/remotes/origin/test
-# あるやんけ　ただし中身は空である
 .git/refs/remotes/origin/test/setup-test
 .git/refs/remotes/origin/feat
 .git/refs/remotes/origin/view
@@ -57,10 +59,10 @@ $ find .git/refs
 .git/refs/heads/feat
 .git/refs/heads/view
 $ cat .git/refs/remotes/origin/test/setup-test
-$ 
+$
 ```
 
-#### そもそもgitブランチに`/`を含めてもよいのか？
+#### そもそも git ブランチに`/`を含めてもよいのか？
 
 含めてもよい。ただし、制限が発生する。
 
@@ -74,7 +76,7 @@ $
 
 `.git/refs`以下には
 
-`.git/refs/heads/test/setup-test`というrefsが生成される。
+`.git/refs/heads/test/setup-test`という refs が生成される。
 
 すると今後
 
@@ -91,28 +93,122 @@ https://stackoverflow.com/a/3651867/22007575
 
 https://git-scm.com/docs/git-check-ref-format
 
-#### メモ
+#### 有効だった策：refs オブジェクトを/tmp へ移動して`git gc`する
 
 https://stackoverflow.com/a/38192799/22007575
 
+```bash
+$ git branch
+  main
+  development
+* test/setup-test
+# 何もしないでgit gcすると以下の通りのエラーが発生する
+$ git gc
+error: bad ref for .git/logs/refs/remotes/origin/test/setup-test
+fatal: bad object refs/remotes/origin/test/setup-test
+fatal: failed to run repack
+# refsオブジェクトを一時フォルダへ移動する
+$ mv .git/logs/refs/remotes/origin/test/setup-test /tmp
+# 移動したファイルがエラーから消えているのが確認できる
+$ git gc
+fatal: bad object refs/remotes/origin/test/setup-test
+fatal: failed to run repack
+# 同様に
+$ mv .git/logs/refs/remotes/origin/test/setup-test /tmp
+# 実行できた
+$ git gc
+Enumerating objects: 1064, done.
+Counting objects: 100% (1064/1064), done.
+Delta compression using up to 4 threads
+Compressing objects: 100% (1022/1022), done.
+Writing objects: 100% (1064/1064), done.
+Total 1064 (delta 583), reused 0 (delta 0), pack-reused 0
+# remotesを削除したけど、pushもfetchもできた
+$ git push origin test/setup-test
+Everything up-to-date
+$ git fetch origin test/setup-test
+# その後refsオブジェクトを確認するとpushした通りにremotesが追加されていた
+$ find .git/refs
+.git/refs
+.git/refs/tags
+.git/refs/remotes
+.git/refs/remotes/origin
+.git/refs/remotes/origin/fix
+.git/refs/remotes/origin/test
+.git/refs/remotes/origin/test/setup-test  # <-- こいつ
+.git/refs/remotes/origin/feat
+.git/refs/remotes/origin/view
+.git/refs/heads
+.git/refs/heads/test
+.git/refs/heads/feat
+.git/refs/heads/view
+```
 
-#### 提案１：`git update-ref -d refs/remotes/origin/test/setup-test`
+#### 原因
+
+```bash
+$ git push origin test/setup-test
+error: update_ref failed for ref 'refs/remotes/origin/test/setup-test': cannot lock ref 'refs/remotes/origin/test/setup-test': unable to resolve reference 'refs/remotes/origin/test/setup-test': reference broken
+Everything up-to-date
+$ find .git/refs
+.git/refs
+.git/refs/tags
+.git/refs/remotes
+.git/refs/remotes/origin
+.git/refs/remotes/origin/fix
+.git/refs/remotes/origin/test
+.git/refs/remotes/origin/test/setup-test
+.git/refs/remotes/origin/feat
+.git/refs/remotes/origin/view
+.git/refs/heads
+.git/refs/heads/test
+.git/refs/heads/feat
+.git/refs/heads/view
+# 以下の通り２つのrefsオブジェクトがおかしかった
+$ git gc
+error: bad ref for .git/logs/refs/remotes/origin/test/setup-test
+fatal: bad object refs/remotes/origin/test/setup-test
+fatal: failed to run repack
+```
+
+TODO: `/remotes/origin/fix`, `/remotes/origin/test`, `/remotes/origin/feat`, `/remotes/origin/view`はいつ制作されたのか、自動的に生成されるのか、それともブランチ名によって生成されうるのか
+
+refs
+
+https://git-scm.com/book/en/v2/Git-Internals-Git-References
+
+refs が生成される瞬間:
+
+コミットしたとき。
+
+refs は特定のコミットオブジェクトを参照するポインタのようなものである。
+
+そして branch は refs の一種である。
+
+ということは、`.git/refs/remots/origin/test/setup-test`という refs オブジェクトは
+
+`git push origin test/setup-test`したときに生成されるはずである。
+
+`remotes` refs: remote を追加して push したときのそのプッシュした値（コミット）をブランチごとに`refs/remots`へ格納する
+
+> The third type of reference that you’ll see is a remote reference. If you add a remote and push to it, Git stores the value you last pushed to that remote for each branch in the refs/remotes directory.
+
+#### 他の提案 1: `git remote set-head origin --auto`
+
+https://stackoverflow.com/a/49944297/22007575
+
+#### 他の提案 2：`git update-ref -d refs/remotes/origin/test/setup-test`
 
 https://stackoverflow.com/questions/32881670/git-update-ref-appears-to-do-nothing
 
 https://stackoverflow.com/questions/58126421/cannot-lock-ref-refs-remotes-origin-master?noredirect=1&lq=1
 
-
-#### 提案2：`git remote prune origin`
+#### 他の提案 3：`git remote prune origin`
 
 でもこれは状況が異なるみたい
 
 https://stackoverflow.com/questions/6656619/git-and-nasty-error-cannot-lock-existing-info-refs-fatal
 
-#### 提案１：`git update-ref -d refs/remotes/origin/test/setup-test`
-
-
- ## git `ref`について
+## git `ref`について
 
 https://git-scm.com/book/en/v2/Git-Internals-Git-References
-

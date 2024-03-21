@@ -20,7 +20,9 @@ $ git config --global sequence.editor 'code --wait'
 
 https://qiita.com/ucan-lab/items/9b442e042988e2d7a35d
 
-## unable to resolve reference 'refs/remotes/origin/test/setup-test': reference broken
+## `refs`オブジェクトが壊れたといわれたとき
+
+遭遇したエラー： `unable to resolve reference 'refs/remotes/origin/test/setup-test': reference broken`
 
 git push しようとしたらタイトルのようなエラーに遭遇した。
 
@@ -144,7 +146,9 @@ $ find .git/refs
 .git/refs/heads/view
 ```
 
-#### 原因
+#### 今回のエラーの原因
+
+正直、原因は特定できていない。
 
 ```bash
 $ git push origin test/setup-test
@@ -171,10 +175,6 @@ fatal: bad object refs/remotes/origin/test/setup-test
 fatal: failed to run repack
 ```
 
-TODO: `/remotes/origin/fix`, `/remotes/origin/test`, `/remotes/origin/feat`, `/remotes/origin/view`はいつ制作されたのか、自動的に生成されるのか、それともブランチ名によって生成されうるのか
-
-refs
-
 https://git-scm.com/book/en/v2/Git-Internals-Git-References
 
 refs が生成される瞬間:
@@ -192,6 +192,45 @@ refs は特定のコミットオブジェクトを参照するポインタのよ
 `remotes` refs: remote を追加して push したときのそのプッシュした値（コミット）をブランチごとに`refs/remots`へ格納する
 
 > The third type of reference that you’ll see is a remote reference. If you add a remote and push to it, Git stores the value you last pushed to that remote for each branch in the refs/remotes directory.
+
+`heads` refs: `heads` ディレクトリの各ファイルはローカルリポジトリのすべてのブランチを参照する
+
+つまり、ブランチを生成すると、`.git/refs/heads`にそのブランチのrefsが追加されるはずということ
+
+https://www.atlassian.com/git/tutorials/refs-and-the-reflog
+
+例 `.git/refs/heads`に新規ブランチが追加されることの確認:
+
+```bash
+$ find .git/refs
+.git/refs
+.git/refs/heads
+.git/refs/heads/main
+.git/refs/heads/modify_git_error_note
+.git/refs/remotes
+.git/refs/remotes/origin
+.git/refs/remotes/origin/HEAD
+.git/refs/remotes/origin/main
+.git/refs/remotes/origin/modify_git_error_note
+.git/refs/tags
+$ git branch
+  main
+* modify_git_error_note
+$ git branch temporary-to-make-sure-git-refs
+$ find .git/refs
+.git/refs
+.git/refs/heads
+.git/refs/heads/main
+.git/refs/heads/modify_git_error_note
+# 追加されている
+.git/refs/heads/temporary-to-make-sure-git-refs
+.git/refs/remotes
+.git/refs/remotes/origin
+.git/refs/remotes/origin/HEAD
+.git/refs/remotes/origin/main
+.git/refs/remotes/origin/modify_git_error_note
+.git/refs/tags
+```
 
 #### 他の提案 1: `git remote set-head origin --auto`
 

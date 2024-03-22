@@ -2,6 +2,8 @@
 
 git push しようとしたところ、refs オブジェクトが壊れてできませんよといわれるエラーに遭遇して、その解決のためにしたことの記録
 
+他主に refs オブジェクトに関するまとめ。
+
 ## 状況
 
 `test/setup-test`ブランチを push しようとしたところ、以下のようなエラーに遭遇
@@ -286,7 +288,69 @@ https://stackoverflow.com/a/3651867/22007575
 
 `.git/refs/remotes/`以下の push 先のリモートブランチが生成される。
 
-では、新規ブランチを作成したときに生成される refs はいったいどのコミットオブジェクトを指しているのか
+#### 新規ブランチを作成したときに生成される refs はいったいどのコミットオブジェクトを指しているのか?
+
+その分岐元となるコミットである。
+
+下記の検証の通り、main ブランチの refs のハッシュ値と、main から分岐して新規作成した temporary ブランチの refs のハッシュ値は同じであった。
+
+```bash
+$ git branch
+* main
+  feat_coutner
+
+$ cat .git/refs/heads/main
+ff02ab7148bde5dae74fef4d11f8a93caadcb7b0
+
+$ git branch temporary
+
+$ find .git/refs
+.git/refs
+.git/refs/heads
+.git/refs/heads/main
+.git/refs/heads/modify_git_error_note
+.git/refs/heads/temporary
+.git/refs/remotes
+.git/refs/remotes/origin
+.git/refs/remotes/origin/HEAD
+.git/refs/remotes/origin/main
+.git/refs/remotes/origin/modify_git_error_note
+.git/refs/tags
+
+$ cat .git/refs/heads/temporary
+ff02ab7148bde5dae74fef4d11f8a93caadcb7b0
+```
+
+#### 作成したブランチでコミットをしていくと、`refs/heads/xxx`以下の refs オブジェクトはそのブランチ上の最新のコミットに更新されていくのか？
+
+その通り。
+
+`refs/heads/xxx`オブジェクトはコミットのたびに最新のコミットを参照する
+
+下記の通り、最初の`.git/refs/heads/temporary`からコミットした後の動オブジェクトの参照値が変わっているのが確認できる
+
+```bash
+$ cat .git/refs/heads/temporary
+ff02ab7148bde5dae74fef4d11f8a93caadcb7b0
+
+$ git switch temporary
+Switched to branch 'temporary'
+
+$ git add .
+$ git commit -m "temporary first commit"
+[temporary 89bcace] temporary first commit
+ 1 file changed, 490 insertions(+)
+ create mode 100644 xxxx.txt
+
+$ cat .git/refs/heads/temporary
+89bcace757247739ceab4fc3b359dcc3a7658af6
+
+$ git log --oneline
+89bcace (HEAD -> temporary) temporary first commit
+ff02ab7 (main) ZZZZZZZZZZZZZZZZZZZZZZZZZ
+232c1fc (origin/main, origin/HEAD) xxxxxxxxxxxxxxxxxxxxxxxxxx
+# ...
+```
 
 #### HEAD refs
 
@@ -294,9 +358,25 @@ https://stackoverflow.com/a/3651867/22007575
 
 つまり、参照の参照である。
 
-```bash
+ブランチをチェックアウトすると、HEAD の参照する対象が変更されるのが確認できる
 
+```bash
+$ git branch
+  main
+* feat_counter
+
+$ cat .git/HEAD
+ref: refs/heads/feat_counter
+
+$ git switch main
+
+$ cat .git/HEAD
+ref: refs/heads/main
 ```
+
+HEAD は他にも、コミット時に生成するコミットオブジェクトの親コミットハッシュ値の参照のために利用される。
+
+つまりコミットオブジェクトの親コミットのハッシュ値は HEAD の参照先がその値となるのである。
 
 ## `git reflog`
 
